@@ -1,0 +1,153 @@
+---
+- name: Install and Configure Prometheus
+  hosts: prometheus
+  become: true
+  vars:
+    prometheus_version: "3.5.0"
+    prometheus_config_dir: "/etc/prometheus"
+    prometheus_data_dir: "/var/lib/prometheus"
+    prometheus_bin_dir: "/usr/local/bin"
+
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: prometheus
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - wget
+          - tar
+        state: present
+
+    - name: Create prometheus user and group
+      group:
+        name: prometheus
+        system: yes
+        state: present
+
+    - name: Create prometheus user
+      user:
+        name: prometheus
+        system: yes
+        group: prometheus
+        shell: /sbin/nologin
+        home: /nonexistent
+        create_home: no
+
+    - name: Create prometheus directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0775'
+      loop:
+        - "{{ prometheus_data_dir }}"
+        - "{{ prometheus_config_dir }}/rules"
+        - "{{ prometheus_config_dir }}/rules.s"
+        - "{{ prometheus_config_dir }}/files_sd"
+
+    - name: Download Prometheus
+      get_url:
+        url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        mode: '0644'
+
+    - name: Extract Prometheus archive
+      unarchive:
+        src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        dest: "/tmp"
+        remote_src: yes
+
+    - name: Copy Prometheus binaries
+      copy:
+        src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}"
+        dest: "{{ prometheus_bin_dir }}/{{ item }}"
+        owner: root
+        group: root
+        mode: '0755'
+        remote_src: yes
+      loop:
+        - prometheus
+        - promtool
+
+    - name: Copy Prometheus config file
+      copy:
+        src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/prometheus.yml"
+        dest: "{{ prometheus_config_dir }}/prometheus.yml"
+        owner: prometheus
+        group: prometheus
+        mode: '0644'
+        remote_src: yes
+
+    - name: Set ownership of config directory
+      file:
+        path: "{{ prometheus_config_dir }}"
+        owner: prometheus
+        group: prometheus
+        mode: '0775'
+        recurse: yes
+
+    - name: Create Prometheus systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Prometheus
+          Documentation=https://prometheus.io/docs/introduction/overview/
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          Type=simple
+          User=prometheus
+          Group=prometheus
+          ExecReload=/bin/kill -HUP $MAINPID
+          ExecStart={{ prometheus_bin_dir }}/prometheus \
+            --config.file={{ prometheus_config_dir }}/prometheus.yml \
+            --storage.tsdb.path={{ prometheus_data_dir }} \
+            --web.console.templates={{ prometheus_config_dir }}/consoles \
+            --web.console.libraries={{ prometheus_config_dir }}/console_libraries \
+            --web.listen-address=0.0.0.0:9090 \
+            --web.enable-remote-write-receiver
+
+          SyslogIdentifier=prometheus
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/prometheus.service
+        mode: '0644'
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start Prometheus service
+      systemd:
+        name: prometheus
+        enabled: yes
+        state: started
+
+    - name: Verify Prometheus is running
+      systemd:
+        name: prometheus
+      register: prometheus_status
+
+    - name: Display Prometheus status
+      debug:
+        msg: "Prometheus service is {{ prometheus_status.status.ActiveState }}"
+
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        - "/tmp/prometheus-{{ prometheus_version }}.linux-amd64"
+

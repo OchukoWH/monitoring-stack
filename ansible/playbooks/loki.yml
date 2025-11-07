@@ -1,0 +1,183 @@
+---
+- name: Install and Configure Loki
+  hosts: loki
+  become: true
+  vars:
+    loki_version: "3.5.7"
+    loki_config_dir: "/etc/loki"
+    loki_data_dir: "/var/lib/loki"
+    loki_bin_dir: "/usr/local/bin"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - unzip
+          - wget
+        state: present
+
+    - name: Create loki user and group
+      group:
+        name: loki
+        system: yes
+        state: present
+
+    - name: Create loki user
+      user:
+        name: loki
+        system: yes
+        group: loki
+        shell: /sbin/nologin
+        home: /nonexistent
+        create_home: no
+
+    - name: Download Loki
+      get_url:
+        url: "https://github.com/grafana/loki/releases/download/v{{ loki_version }}/loki-linux-amd64.zip"
+        dest: "/tmp/loki-linux-amd64.zip"
+        mode: '0644'
+
+    - name: Extract Loki archive
+      unarchive:
+        src: "/tmp/loki-linux-amd64.zip"
+        dest: "/tmp"
+        remote_src: yes
+        creates: "/tmp/loki-linux-amd64"
+
+    - name: Copy Loki binary
+      copy:
+        src: "/tmp/loki-linux-amd64"
+        dest: "{{ loki_bin_dir }}/loki"
+        owner: root
+        group: root
+        mode: '0755'
+        remote_src: yes
+
+    - name: Create Loki data directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: loki
+        group: loki
+        mode: '0755'
+      loop:
+        - "{{ loki_data_dir }}/chunks"
+        - "{{ loki_data_dir }}/rules"
+        - "{{ loki_config_dir }}"
+
+    - name: Create Loki configuration file
+      copy:
+        content: |
+          auth_enabled: false
+
+          server:
+            http_listen_port: 3100
+
+          common:
+            path_prefix: {{ loki_data_dir }}
+            storage:
+              filesystem:
+                chunks_directory: {{ loki_data_dir }}/chunks
+                rules_directory: {{ loki_data_dir }}/rules
+            replication_factor: 1
+            ring:
+              kvstore:
+                store: inmemory
+
+          schema_config:
+            configs:
+              - from: 2023-01-01
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: index_
+                  period: 24h
+
+          limits_config:
+            allow_structured_metadata: false
+        dest: "{{ loki_config_dir }}/config.yml"
+        owner: loki
+        group: loki
+        mode: '0644'
+
+    - name: Set ownership of config directory
+      file:
+        path: "{{ loki_config_dir }}"
+        owner: loki
+        group: loki
+        mode: '0755'
+        recurse: yes
+
+    - name: Create Loki systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Loki Log Aggregation
+          After=network.target
+
+          [Service]
+          User=loki
+          Group=loki
+          Type=simple
+          ExecStart={{ loki_bin_dir }}/loki --config.file={{ loki_config_dir }}/config.yml
+          Restart=on-failure
+          LimitNOFILE=65536
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/loki.service
+        mode: '0644'
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start Loki service
+      systemd:
+        name: loki
+        enabled: yes
+        state: started
+
+    - name: Wait for Loki to be ready
+      uri:
+        url: "http://localhost:3100/ready"
+        status_code: 200
+      register: loki_ready
+      until: loki_ready.status == 200
+      retries: 30
+      delay: 4
+
+    - name: Verify Loki is running
+      systemd:
+        name: loki
+      register: loki_status
+
+    - name: Display Loki status
+      debug:
+        msg: "Loki service is {{ loki_status.status.ActiveState }}"
+
+    - name: Verify Loki metrics endpoint
+      uri:
+        url: "http://localhost:3100/metrics"
+        return_content: yes
+      register: loki_metrics
+
+    - name: Check Loki build info in metrics
+      debug:
+        msg: "Loki metrics endpoint is accessible"
+      when: "'loki_build_info' in loki_metrics.content"
+
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/loki-linux-amd64.zip"
+        - "/tmp/loki-linux-amd64"
+

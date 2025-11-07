@@ -1,0 +1,37 @@
+all:
+  children:
+    prometheus:
+      hosts:
+        prometheus-node:
+          ansible_host: PROMETHEUS_IP_HERE
+      vars:
+        ansible_user: ubuntu
+        ansible_ssh_private_key_file: ../../monitoring-key
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    
+    grafana:
+      hosts:
+        grafana-node:
+          ansible_host: GRAFANA_IP_HERE
+      vars:
+        ansible_user: ubuntu
+        ansible_ssh_private_key_file: ../../monitoring-key
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    
+    loki:
+      hosts:
+        loki-node:
+          ansible_host: LOKI_IP_HERE
+      vars:
+        ansible_user: ubuntu
+        ansible_ssh_private_key_file: ../../monitoring-key
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    
+    promtail:
+      hosts:
+        promtail-node:
+          ansible_host: PROMTAIL_IP_HERE
+      vars:
+        ansible_user: ubuntu
+        ansible_ssh_private_key_file: ../../monitoring-key
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
