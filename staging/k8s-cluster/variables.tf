@@ -19,7 +19,7 @@ variable "env" {
 variable "instance_type" {
   description = "EC2 instance type for monitoring nodes"
   type        = string
-  default     = "t3.medium"
+  default     = "t2.micro"
 }
 
 variable "key_pair_name" {

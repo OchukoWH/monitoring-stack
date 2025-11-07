@@ -16,5 +16,5 @@ bucket = "vprofile-move356234-add-terraform-state"
 # ==============================================================================
 # Instance Configuration
 # ==============================================================================
-instance_type = "t3.medium"
+instance_type = "t2.micro"
 key_pair_name = "monitoring-keypair"
