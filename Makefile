@@ -52,11 +52,14 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Utility Targets:$(NC)"
 	@echo "  make keys                 - Generate SSH key pair"
+	@echo "  make inventory            - Generate Ansible inventory from Terraform outputs"
 	@echo "  make clean                - Clean Terraform plan files and generated files"
 	@echo ""
-	@echo "$(YELLOW)Quick start:$(NC)"
-	@echo "  make deploy-all           - Complete deployment (S3 + Monitoring Stack)"
-	@echo "  make setup-all-services   - Setup all monitoring services after deployment"
+	@echo "$(YELLOW)Quick start (Complete Deployment):$(NC)"
+	@echo "  1. make keys              - Generate SSH keys"
+	@echo "  2. make deploy-all        - Deploy infrastructure (S3 + 4 VMs)"
+	@echo "  3. make inventory         - Generate inventory from Terraform outputs"
+	@echo "  4. make setup-all-services - Setup all monitoring services"
 
 # ==============================================================================
 # S3 Backend Setup
@@ -118,6 +121,10 @@ deploy-all: deploy-s3 deploy-monitoring-stack
 	@echo "$(GREEN)🎉 Complete deployment finished!$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
+	@echo "$(BLUE)Next steps:$(NC)"
+	@echo "  1. Run: make inventory (generates inventory from Terraform outputs)"
+	@echo "  2. Run: make setup-all-services (installs Prometheus, Grafana, Loki)"
+	@echo ""
 	@echo "$(BLUE)To view instance details:$(NC)"
 	@echo "  cd $(MONITORING_DIR) && terraform output"
 
@@ -144,12 +151,17 @@ destroy-all: destroy-monitoring-stack
 	@echo "$(GREEN)All infrastructure destroyed$(NC)"
 
 # ==============================================================================
-# SSH Keys
+# SSH Keys and Inventory
 # ==============================================================================
 keys:
 	@echo "$(GREEN)Generating SSH key pair...$(NC)"
 	@./scripts/generate-keys.sh
 	@echo "$(GREEN)✓ SSH keys generated$(NC)"
+
+inventory:
+	@echo "$(GREEN)Generating Ansible inventory from Terraform outputs...$(NC)"
+	@./scripts/generate-inventory.sh
+	@echo "$(GREEN)✓ Inventory generated$(NC)"
 
 # ==============================================================================
 # Ansible Playbooks
