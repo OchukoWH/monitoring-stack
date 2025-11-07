@@ -66,13 +66,13 @@ help:
 # ==============================================================================
 init-s3:
 	@echo "$(GREEN)Initializing S3 backend...$(NC)"
-	@cd $(S3_DIR) && terraform init -input=false -backend-config=../../$(STATE_CONFIG)
+	@cd $(S3_DIR) && terraform init -input=false -backend-config=$(STATE_CONFIG_PATH)
 
 deploy-s3:
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(GREEN)Deploying S3 backend...$(NC)"
 	@cd $(S3_DIR) && \
-		terraform init -input=false && \
+		terraform init -input=false -backend-config=$(STATE_CONFIG_PATH) && \
 		terraform plan -input=false -compact-warnings -var-file=$(TFVARS_PATH) -out=tfplan && \
 		terraform apply -input=false -auto-approve tfplan && \
 		rm -f tfplan
@@ -80,13 +80,13 @@ deploy-s3:
 
 migrate-s3-backend:
 	@echo "$(GREEN)Migrating S3 backend state...$(NC)"
-	@cd $(S3_DIR) && echo "yes" | terraform init -migrate-state -backend-config=../../$(STATE_CONFIG)
+	@cd $(S3_DIR) && echo "yes" | terraform init -migrate-state -backend-config=$(STATE_CONFIG_PATH)
 	@echo "$(GREEN)✓ S3 backend state migrated$(NC)"
 
 plan-s3:
 	@echo "$(YELLOW)Planning S3 backend changes...$(NC)"
 	@cd $(S3_DIR) && \
-		terraform init -input=false && \
+		terraform init -input=false -backend-config=$(STATE_CONFIG_PATH) && \
 		terraform plan -input=false -compact-warnings -var-file=$(TFVARS_PATH)
 
 # ==============================================================================
@@ -96,7 +96,7 @@ deploy-monitoring-stack:
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(GREEN)Deploying Monitoring Stack (4 Ubuntu VMs)...$(NC)"
 	@cd $(MONITORING_DIR) && \
-		terraform init -input=false -backend-config=../../$(STATE_CONFIG) -backend-config="key=staging/monitoring-stack/terraform.tfstate" && \
+		terraform init -input=false -backend-config=$(STATE_CONFIG_PATH)" && \
 		terraform plan -input=false -compact-warnings -var-file=$(TFVARS_PATH) -out=tfplan && \
 		terraform apply -input=false -auto-approve tfplan && \
 		rm -f tfplan
@@ -131,7 +131,7 @@ deploy-all: deploy-s3 deploy-monitoring-stack
 plan-monitoring-stack:
 	@echo "$(YELLOW)Planning monitoring stack changes...$(NC)"
 	@cd $(MONITORING_DIR) && \
-		terraform init -input=false -backend-config=../../$(STATE_CONFIG) -backend-config="key=staging/monitoring-stack/terraform.tfstate" && \
+		terraform init -input=false -backend-config=$(STATE_CONFIG_PATH)" && \
 		terraform plan -input=false -compact-warnings -var-file=$(TFVARS_PATH)
 
 plan-all: plan-s3 plan-monitoring-stack
@@ -143,7 +143,7 @@ plan-all: plan-s3 plan-monitoring-stack
 destroy-monitoring-stack:
 	@echo "$(RED)Destroying monitoring stack infrastructure...$(NC)"
 	@cd $(MONITORING_DIR) && \
-		terraform init -input=false -backend-config=../../$(STATE_CONFIG) -backend-config="key=staging/monitoring-stack/terraform.tfstate" && \
+		terraform init -input=false -backend-config=$(STATE_CONFIG_PATH)" && \
 		terraform destroy -input=false -compact-warnings -var-file=$(TFVARS_PATH) -auto-approve
 	@echo "$(GREEN)✓ Monitoring stack infrastructure destroyed$(NC)"
 
